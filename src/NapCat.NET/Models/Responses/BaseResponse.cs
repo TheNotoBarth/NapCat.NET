@@ -19,7 +19,7 @@ public class BaseResponse<T>
     /// 响应码
     /// </summary>
     [JsonPropertyName("retcode")]
-    public int Retcode { get; set; }
+    public int RetCode { get; set; }
 
     /// <summary>
     /// 响应数据
