@@ -16,10 +16,11 @@ using NapCat.NET.Serialization;
 
 namespace NapCat.NET.Transports;
 
-public class NapCatWebSocketTransport : INapCatTransport
+public class NapCatWebSocketTransport(string url, ILogger logger, TimeSpan? requestTimeout = null, string? accessToken = null) : INapCatTransport
 {
-    private readonly ILogger _logger;
-    private readonly Uri _targetUri;
+    private readonly ILogger _logger = logger;
+    private readonly Uri _targetUri = new Uri(url);
+    private readonly string? _accessToken = string.IsNullOrWhiteSpace(accessToken) ? null : accessToken;
     private ClientWebSocket? _client;
     private CancellationTokenSource? _receiveCts;
     private Task? _receiveLoop;
@@ -36,7 +37,7 @@ public class NapCatWebSocketTransport : INapCatTransport
         NumberHandling = JsonNumberHandling.AllowReadingFromString,
         Converters = { new NapCatEventJsonConverter(), new MessageSegmentJsonConverter() }
     };
-    private readonly TimeSpan _requestTimeout;
+    private readonly TimeSpan _requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(60);
     private readonly SemaphoreSlim _sendLock = new(1, 1);
 
     public string Name => "NapCat-Forward-WS";
@@ -45,13 +46,6 @@ public class NapCatWebSocketTransport : INapCatTransport
     public event EventHandler<BaseResponse<JsonElement>>? ResponseReceived;
     public event EventHandler<NapCatEvent>? EventReceived;
     public event EventHandler? OnDisconnected;
-
-    public NapCatWebSocketTransport(string url, ILogger logger, TimeSpan? requestTimeout = null)
-    {
-        _targetUri = new Uri(url);
-        _logger = logger;
-        _requestTimeout = requestTimeout ?? TimeSpan.FromSeconds(60);
-    }
 
     private async Task ReceiveLoopAsync(CancellationToken token)
     {
@@ -196,6 +190,11 @@ public class NapCatWebSocketTransport : INapCatTransport
         _logger.LogInformation("[{Name}] 正在连接到 {Uri} ...", Name, _targetUri);
 
         _client = new ClientWebSocket();
+        if (!string.IsNullOrWhiteSpace(_accessToken))
+        {
+            _client.Options.SetRequestHeader("Authorization", $"Bearer {_accessToken}");
+            _client.Options.SetRequestHeader("X-Access-Token", _accessToken);
+        }
         _client.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
         await _client.ConnectAsync(_targetUri, token);
 
